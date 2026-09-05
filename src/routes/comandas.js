@@ -3,6 +3,26 @@ const router = express.Router();
 const db = require('../db/database');
 const uid = () => require('crypto').randomUUID();
 
+// ✅ Data e datetime sempre no horário local (não UTC)
+function hojeLocal() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function nowLocal() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const mo = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  const h = String(now.getHours()).padStart(2, '0');
+  const mi = String(now.getMinutes()).padStart(2, '0');
+  const s = String(now.getSeconds()).padStart(2, '0');
+  return `${y}-${mo}-${d} ${h}:${mi}:${s}`;
+}
+
 function enrich(c) {
   c.fechada = !!c.fechada;
   c.items = db.prepare('SELECT * FROM comanda_items WHERE comanda_id = ?').all(c.id);
@@ -32,7 +52,7 @@ router.post('/', (req, res) => {
   const { nome, cliente_id } = req.body;
   if (!nome) return res.status(400).json({ error: 'Nome obrigatório' });
 
-  const hoje = new Date().toISOString().split('T')[0];
+  const hoje = hojeLocal(); // ✅ data local
 
   // Verifica se o caixa está aberto
   const caixaAberto = db.prepare('SELECT * FROM caixa_abertura WHERE data = ?').get(hoje);
@@ -49,7 +69,7 @@ router.post('/', (req, res) => {
     db.prepare('INSERT INTO seq_dia (data, ultimo_numero) VALUES (?, 1)').run(hoje);
   }
 
-  // Upsert cliente — salva para sempre
+  // Upsert cliente
   let cliId = cliente_id || null;
   if (!cliId) {
     const existing = db.prepare('SELECT id FROM clientes WHERE LOWER(nome) = LOWER(?)').get(nome.trim());
@@ -113,14 +133,16 @@ router.post('/:id/fechar', (req, res) => {
   if (!pagamentos?.length) return res.status(400).json({ error: 'Informe ao menos um pagamento' });
   const cmd = db.prepare('SELECT * FROM comandas WHERE id = ?').get(req.params.id);
   if (!cmd) return res.status(404).json({ error: 'Não encontrada' });
-  const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+
+  const now = nowLocal(); // ✅ datetime local
+
   db.prepare('UPDATE comandas SET fechada=1, obs=?, fechada_em=? WHERE id=?').run(obs || '', now, cmd.id);
   const ins = db.prepare('INSERT INTO comanda_pagamentos (id,comanda_id,forma_pagamento,valor) VALUES (?,?,?,?)');
   pagamentos.forEach(p => ins.run(uid(), cmd.id, p.forma_pagamento, p.valor));
+
   if (cmd.evento_id) {
     db.prepare('UPDATE eventos SET receita = receita + ? WHERE id = ?').run(cmd.total, cmd.evento_id);
   }
-  // Atualiza perfil do cliente
   if (cmd.cliente_id) {
     db.prepare(`UPDATE clientes SET
       total_gasto = total_gasto + ?,

@@ -41,17 +41,12 @@ if not exist "node_modules" (
 :: Cria pasta de dados se não existir
 if not exist "data" mkdir data
 
-:: Inicia o servidor em segundo plano
-echo  Iniciando servidor...
-start /B node src/server.js
-
-:: Aguarda o servidor subir
+:: Abre o navegador apos 2 segundos (em paralelo)
 echo  Aguardando servidor iniciar...
-timeout /t 2 /nobreak >nul
+start /B cmd /c "timeout /t 2 /nobreak >nul && start http://localhost:3000"
 
-:: Abre o navegador
-echo  Abrindo sistema no navegador...
-start http://localhost:3000
+:: Inicia o servidor em primeiro plano (fechar janela = encerrar sistema)
+echo  Iniciando servidor...
 
 echo.
 echo  ==========================================

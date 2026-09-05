@@ -312,7 +312,13 @@ const fmt = v => 'R$ '+Number(v||0).toFixed(2).replace('.',',').replace(/\B(?=(\
 const fmtH = h => h === 1 ? '1h' : `${h}h`;
 const fmtDate = d => d ? new Date(d.includes('T')?d:d+'T12:00:00').toLocaleDateString('pt-BR') : '—';
 const fmtDT = d => { if(!d)return'—'; const dt=new Date(d.replace(' ','T')||d); return dt.toLocaleDateString('pt-BR')+' '+dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); };
-const todayStr = () => new Date().toISOString().split('T')[0];
+const todayStr = () => {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
 const mesStr = () => { const n=new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`; };
 
 function toast(msg, type='i'){
@@ -820,8 +826,14 @@ async function renderCaixa(){
         ${!st.abertura
           ? `<button class="btn btn-p" onclick="openAberturaModal()">💰 Abrir Caixa</button>`
           : !fechado
-            ? `<button class="btn btn-d" onclick="tentarFecharCaixa()">🔒 Fechar Caixa</button>`
-            : `<button class="btn btn-p" onclick="openAberturaModal()">🔓 Abrir Novo Dia</button>`}
+            ? `<div style="display:flex;gap:8px">
+                <button class="btn btn-g" onclick="editarCaixa()">✏️ Editar Caixa</button>
+                <button class="btn btn-d" onclick="tentarFecharCaixa()">🔒 Fechar Caixa</button>
+               </div>`
+            : `<div style="display:flex;gap:8px">
+                <button class="btn btn-g" onclick="reabrirCaixa()">↩️ Desfazer Fechamento</button>
+                <button class="btn btn-p" onclick="openAberturaModal()">🔓 Abrir Novo Dia</button>
+               </div>`}
       </div>
     </div>
 
@@ -835,24 +847,42 @@ async function renderCaixa(){
         <button class="btn btn-p" style="margin-left:auto" onclick="openAberturaModal()">Abrir Agora</button>
       </div>` :
     fechado ? `
-      <div style="background:var(--gd);border:2px solid var(--green);border-radius:var(--r);padding:16px;margin-bottom:16px;display:flex;align-items:center;gap:12px">
-        <span style="font-size:32px">✅</span>
-        <div>
-          <div class="fb" style="font-size:16px;color:var(--green)">Caixa fechado com sucesso</div>
-          <div class="xs mt">Fechado em ${fmtDT(st.fechamento.fechado_em)} · Total: ${fmt(st.fechamento.total_geral)}</div>
+      <div style="background:var(--gd);border:2px solid var(--green);border-radius:var(--r);padding:16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="font-size:32px">✅</span>
+          <div>
+            <div class="fb" style="font-size:16px;color:var(--green)">Caixa fechado com sucesso</div>
+            <div class="xs mt">Fechado em ${fmtDT(st.fechamento.fechado_em)} · Total: ${fmt(st.fechamento.total_geral)}</div>
+          </div>
         </div>
+        <button class="btn btn-g sm" onclick="reabrirCaixa()">↩️ Desfazer Fechamento</button>
       </div>` : `
-      <div style="background:var(--yl);border:2px solid var(--yellow);border-radius:var(--r);padding:14px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between">
-        <div class="abertura-info">
-          <div style="font-family:'Bebas Neue';font-size:16px;letter-spacing:1px;color:var(--yellow2)">💰 Caixa Aberto</div>
-          <div style="font-size:22px;font-weight:800">${fmt(resumo.saldoCaixa)}</div>
-          <div class="xs mt">Inicial ${fmt(st.abertura.valor_inicial)} + ${fmt(resumo.dinheiroDia)} dinheiro hoje</div>
+      <div style="background:var(--yl);border:2px solid var(--yellow);border-radius:var(--r);padding:14px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${resumo.movimentacoes?.length?'10px':'0'}">
+          <div class="abertura-info">
+            <div style="font-family:'Bebas Neue';font-size:16px;letter-spacing:1px;color:var(--yellow2)">💰 Caixa Aberto</div>
+            <div style="font-size:28px;font-weight:800;color:var(--yellow2)">${fmt(resumo.saldoCaixa)}</div>
+            <div class="xs mt">
+              Inicial ${fmt(st.abertura.valor_inicial)}
+              + ${fmt(resumo.dinheiroDia)} entradas
+              ${resumo.totalRetiradas > 0 ? `<span style="color:var(--red)"> − ${fmt(resumo.totalRetiradas)} retiradas</span>` : ''}
+            </div>
+          </div>
+          <div style="text-align:right">
+            <div class="xs mt">Comandas abertas</div>
+            <div style="font-family:'Bebas Neue';font-size:28px;color:${resumo.abertas>0?'var(--red)':'var(--green)'}">${resumo.abertas}</div>
+            ${resumo.abertas>0 ? `<div class="xs mt" style="color:var(--red)">⚠️ Feche antes de encerrar</div>` : '<div class="xs mt" style="color:var(--green)">✓ Todas fechadas</div>'}
+          </div>
         </div>
-        <div style="text-align:right">
-          <div class="xs mt">Comandas abertas</div>
-          <div style="font-family:'Bebas Neue';font-size:28px;color:${resumo.abertas>0?'var(--red)':'var(--green)'}">${resumo.abertas}</div>
-          ${resumo.abertas>0 ? `<div class="xs mt" style="color:var(--red)">⚠️ Feche antes de encerrar</div>` : '<div class="xs mt" style="color:var(--green)">✓ Todas fechadas</div>'}
-        </div>
+        ${resumo.movimentacoes?.length ? `
+          <div style="border-top:1px solid rgba(245,168,0,.4);padding-top:8px">
+            <div class="xs mt" style="font-weight:700;margin-bottom:4px">📋 Movimentações do dia:</div>
+            ${resumo.movimentacoes.map(m => `
+              <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:4px 0;border-bottom:1px solid rgba(245,168,0,.2)">
+                <span>${m.tipo === 'retirada' ? '💸 Retirada' : '🔧 Ajuste'}: ${m.obs}</span>
+                <span style="color:var(--red);font-weight:700">− ${fmt(m.valor)}</span>
+              </div>`).join('')}
+          </div>` : ''}
       </div>`}
 
     <div class="cg4">
@@ -914,7 +944,31 @@ async function renderCaixa(){
     </div>`;
 }
 
-function openAberturaModal(){
+async function openAberturaModal(){
+  // Verifica status antes de abrir o modal
+  const st = await api('GET','/caixa/status');
+
+  // Se ja tem abertura hoje (aberto ou fechado), bloqueia novo caixa
+  if(st.abertura){
+    if(st.fechamento){
+      // Caixa foi fechado hoje — orienta a reabrir
+      openModal('⚠️ Caixa já fechado hoje', `
+        <div style="background:var(--yl);border:1.5px solid var(--yellow);border-radius:var(--rs);padding:14px;margin-bottom:12px">
+          <div class="fb" style="color:var(--yellow2);font-size:15px">Não é possível abrir um segundo caixa hoje.</div>
+          <div class="xs mt" style="margin-top:4px">O caixa de hoje já foi aberto e fechado. Se fechou por engano, use o botão abaixo para desfazer o fechamento.</div>
+        </div>
+        <p class="xs mt">Para iniciar um novo dia, aguarde a virada da data.</p>
+      `, `
+        <button class="btn btn-g" onclick="closeModal()">Fechar</button>
+        <button class="btn btn-p" onclick="closeModal();reabrirCaixa()">↩️ Desfazer Fechamento</button>`);
+    } else {
+      // Caixa ja esta aberto hoje
+      toast('O caixa de hoje já está aberto!', 'i');
+    }
+    return;
+  }
+
+  // Caixa não aberto — abre normalmente
   openModal('Abrir Caixa', `
     <p class="xs mt mb12">Registre o valor em dinheiro disponível para troco. Isso libera as comandas do dia.</p>
     <div class="ig">
@@ -937,6 +991,52 @@ function openAberturaModal(){
       await updateTopbar();
       renderCaixa();
     })()">💰 Abrir Caixa</button>`);
+}
+
+// Editar caixa — retiradas e ajustes
+async function editarCaixa(){
+  const st = await api('GET','/caixa/status');
+  if(!st.abertura){ toast('Caixa não está aberto','e'); return; }
+  const resumo = await api('GET',`/caixa/resumo/${todayStr()}`);
+
+  openModal('✏️ Editar Caixa', `
+    <div style="background:var(--yl);border:1px solid var(--yellow);border-radius:var(--rs);padding:12px;margin-bottom:14px">
+      <div class="xs mt">Saldo atual em dinheiro</div>
+      <div style="font-family:'Barlow Condensed';font-size:28px;font-weight:800;color:var(--yellow2)">${fmt(resumo.saldoCaixa)}</div>
+      <div class="xs mt">Inicial ${fmt(st.abertura.valor_inicial)} + ${fmt(resumo.dinheiroDia)} entradas</div>
+    </div>
+
+    <div class="ig">
+      <label class="lbl">Tipo de Ajuste</label>
+      <select class="inp" id="ec-tipo" onchange="
+        const r = this.value === 'retirada';
+        document.getElementById('ec-val-label').textContent = r ? 'Valor da Retirada (R$)' : 'Novo Valor Inicial (R$)';
+      ">
+        <option value="retirada">💸 Retirada de Dinheiro</option>
+        <option value="ajuste">🔧 Ajuste do Valor Inicial</option>
+      </select>
+    </div>
+    <div class="ig">
+      <label class="lbl" id="ec-val-label">Valor da Retirada (R$)</label>
+      <input class="inp" type="number" id="ec-val" value="0" step="1" min="0" style="font-size:20px;padding:12px;font-weight:700">
+    </div>
+    <div class="ig">
+      <label class="lbl">Motivo / Observação <span style="color:var(--red)">*</span></label>
+      <input class="inp" id="ec-obs" placeholder="Ex: Pagamento fornecedor, troco para funcionário...">
+    </div>
+  `, `
+    <button class="btn btn-g" onclick="closeModal()">Cancelar</button>
+    <button class="btn btn-p" onclick="(async()=>{
+      const tipo = document.getElementById('ec-tipo').value;
+      const val = +document.getElementById('ec-val').value;
+      const obs = document.getElementById('ec-obs').value.trim();
+      if(!obs){ toast('Informe o motivo do ajuste','e'); return; }
+      if(!val){ toast('Informe um valor','e'); return; }
+      await api('POST','/caixa/ajuste',{ tipo, valor: val, obs });
+      closeModal();
+      toast(tipo === 'retirada' ? 'Retirada registrada!' : 'Caixa ajustado!','s');
+      renderCaixa();
+    })()">💾 Salvar</button>`);
 }
 
 async function tentarFecharCaixa(){
@@ -977,6 +1077,24 @@ async function tentarFecharCaixa(){
       await updateTopbar();
       renderCaixa();
     })()">🔒 Confirmar Fechamento</button>`);
+}
+
+async function reabrirCaixa(){
+  openModal('↩️ Desfazer Fechamento', `
+    <div style="background:var(--yl);border:1.5px solid var(--yellow);border-radius:var(--rs);padding:14px;margin-bottom:12px">
+      <div class="fb" style="font-size:15px;color:var(--yellow2)">⚠️ Atenção</div>
+      <div class="xs mt" style="margin-top:4px">Isso vai reabrir o caixa de hoje. Os dados financeiros permanecem intactos — apenas o fechamento é desfeito.</div>
+    </div>
+    <p class="xs mt">Use apenas se fechou o caixa por engano. Após reabrir, você poderá continuar operando normalmente.</p>
+  `, `
+    <button class="btn btn-g" onclick="closeModal()">Cancelar</button>
+    <button class="btn btn-p" onclick="(async()=>{
+      await api('POST','/caixa/reabrir');
+      closeModal();
+      toast('Caixa reaberto! Continue operando.','s');
+      await updateTopbar();
+      renderCaixa();
+    })()">↩️ Confirmar Reabertura</button>`);
 }
 
 // ═══════════════════════════════════════════════════
