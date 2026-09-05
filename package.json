@@ -1,0 +1,18 @@
+{
+  "name": "resenha-beach",
+  "version": "2.0.0",
+  "description": "Sistema de Gestão — Arena Resenha Beach",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.4.3",
+    "express": "^4.18.3",
+    "express-session": "^1.18.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
+}
